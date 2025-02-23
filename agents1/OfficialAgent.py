@@ -41,6 +41,7 @@ class Phase(enum.Enum):
 class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
+        # self._pending_rescues = {}  # Track promised rescues - human promises a rescue when they send a "Rescue:" message
         # Initialization of some relevant variables
         self._tick = None
         self._slowdown = slowdown
@@ -820,7 +821,7 @@ class BaselineAgent(ArtificialBrain):
         for mssgs in receivedMessages.values():
             for msg in mssgs:
                 # If a received message involves team members searching areas, add these areas to the memory of areas that have been explored
-                if msg.startswith("Search:"):
+                if msg.startswith("Search:"): # Dimana
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
@@ -898,7 +899,7 @@ class BaselineAgent(ArtificialBrain):
                     else:
                         area = 'area ' + msg.split()[-1]
                         self._send_message('Will come to ' + area + ' after dropping ' + self._goal_vic + '.',
-                                          'RescueBot')
+                                           'RescueBot')
             # Store the current location of the human in memory
             if mssgs and mssgs[-1].split()[-1] in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
                                                    '14']:
@@ -908,30 +909,40 @@ class BaselineAgent(ArtificialBrain):
         '''
         Loads trust belief values if agent already collaborated with human before, otherwise trust belief values are initialized using default values.
         '''
-        # Create a dictionary with trust values for all team members
-        trustBeliefs = {}
-        # Set a default starting trust value
-        default = 0.5
+        trustBeliefs = {"search": {}, "rescue": {}}
+        default = 0.0
         trustfile_header = []
-        trustfile_contents = []
-        # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
-        with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
+
+        with open(f"{folder}/beliefs/allTrustBeliefs.csv", newline='', encoding="utf-8") as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+            trustfile_header = next(reader, None)  # Read header row
+
             for row in reader:
-                if trustfile_header == []:
-                    trustfile_header = row
+                if len(row) < 4:
                     continue
-                # Retrieve trust values 
-                if row and row[0] == self._human_name:
-                    name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
+
+                name, task, competence, willingness = row[0], row[1], row[2], row[3]
+
+                if not name or not task:
+                    continue
+
+                competence = float(competence)
+                willingness = float(willingness)
+
+
+                if task in trustBeliefs:
+                    trustBeliefs[task][name] = {
+                        "competence": competence,
+                        "willingness": willingness}
+
+        for task in ["search", "rescue"]:
+            for member in members:
+                if member not in trustBeliefs[task]:
+                    trustBeliefs[task][member] = {
+                        "competence": default,
+                        "willingness": default
+                    }
+
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -942,16 +953,23 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
+                if self._human_name in trustBeliefs['rescue']:
+                    trustBeliefs['rescue'][self._human_name]['competence'] += 0.10
+                    # Restrict the competence belief to a range of -1 to 1
+                    trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(trustBeliefs['rescue'][self._human_name]['competence'], -1, 1)
+
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+            for task in ["search", "rescue"]:
+                if self._human_name in trustBeliefs[task]:
+                    csv_writer.writerow([
+                        self._human_name, task,
+                        trustBeliefs[task][self._human_name]['competence'],
+                        trustBeliefs[task][self._human_name]['willingness']
+                    ])
 
         return trustBeliefs
 

@@ -1,2 +1,3 @@
-name;competence;willingness
-;;;
+name;task;competence;willingness
+human;search;0.0;0.0
+human;rescue;0.0;0.0
