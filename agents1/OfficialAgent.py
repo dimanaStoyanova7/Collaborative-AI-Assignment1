@@ -998,9 +998,9 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
 
             if 'Found:' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
+                trustBeliefs["rescue"][self._human_name]['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                           1)
                   
             # Increase agent trust in a team member that rescued a victim
