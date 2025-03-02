@@ -210,6 +210,17 @@ class BaselineAgent(ArtificialBrain):
                         # Rescue alone if the victim is mildly injured and the human not weak
                         if 'mild' in vic and self._condition != 'weak':
                             self._rescue = 'alone'
+
+                        # Get the human's rescue competence from trust beliefs
+                        #human_competence = trustBeliefs['rescue'][self._human_name]['competence']\
+                            #if self._human_name in trustBeliefs['rescue'] else 0.49
+                        # Rescue together when victim is critical or when the human is weak and the victim is mildly injured or when the competence is low
+                        #if 'critical' in vic or human_competence < 0.5 or 'mild' in vic and self._condition == 'weak':
+                            #self._rescue = 'together'
+                        # Rescue alone if the victim is mildly injured and the human not weak and the competence is high
+                        #if 'mild' in vic and self._condition != 'weak' and human_competence >= 0.5:
+                            #self._rescue = 'alone'
+
                         # Plan path to victim because the exact location is known (i.e., the agent found this victim)
                         if 'location' in self._found_victim_logs[vic].keys():
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
@@ -988,10 +999,23 @@ class BaselineAgent(ArtificialBrain):
 
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                if self._human_name in trustBeliefs['rescue']:
-                    trustBeliefs['rescue'][self._human_name]['competence'] += 0.10
-                    # Restrict the competence belief to a range of -1 to 1
-                    trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(trustBeliefs['rescue'][self._human_name]['competence'], -1, 1)
+                # Identify which victim it is
+                if len(message.split()) == 6:
+                    victim = ' '.join(message.split()[1:4])
+                else:
+                    victim = ' '.join(message.split()[1:5])
+
+                # If the rescue was valid (victim is in collected victims list)
+                if victim in self._collected_victims:
+                    if self._human_name in trustBeliefs['rescue']:
+                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['rescue'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                        )
+                else:  # If the human claimed to rescue but did not
+                    if self._human_name in trustBeliefs['rescue']:
+                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['rescue'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                        )
             if 'Search' in message:
                 area = 'area ' + message.split()[-1]
                 if area in self._searched_rooms:  # If the search was valid
