@@ -41,6 +41,7 @@ class Phase(enum.Enum):
 class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
+        # self._pending_rescues = {}  # Track promised rescues - human promises a rescue when they send a "Rescue:" message
         # Initialization of some relevant variables
         self._tick = None
         self._slowdown = slowdown
@@ -455,6 +456,9 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
+
+                        current_willingness = trustBeliefs['search'][self._human_name]['willingness']
+
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -476,19 +480,29 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            if not self._remove:
+                            if current_willingness >= 0:
+                                if not self._remove:
+                                    self._answered = True
+                                # Tell the human to come over and be idle untill human arrives
+                                if not state[{'is_human_agent': True}]:
+                                    self._send_message(
+                                        'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
+                                        'RescueBot')
+                                    return None, {}
+                                # Tell the human to remove the obstacle when he/she arrives
+                                if state[{'is_human_agent': True}]:
+                                    self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
+                                                      'RescueBot')
+                                    return None, {}
+                            else:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message(
-                                    'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
-                                    'RescueBot')
-                                return None, {}
-                            # Tell the human to remove the obstacle when he/she arrives
-                            if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
-                                return None, {}
+                                self._waiting = False
+                                self._send_message('Removing stones blocking ' + str(
+                                    self._door['room_name']) + ' alone due to low willingness.',
+                                                   'RescueBot')
+                                self._phase = Phase.ENTER_ROOM
+                                self._remove = False
+                                return RemoveObject.__name__, {'object_id': info['obj_id']}
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
@@ -820,7 +834,7 @@ class BaselineAgent(ArtificialBrain):
         for mssgs in receivedMessages.values():
             for msg in mssgs:
                 # If a received message involves team members searching areas, add these areas to the memory of areas that have been explored
-                if msg.startswith("Search:"):
+                if msg.startswith("Search:"): # Dimana
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
@@ -898,7 +912,7 @@ class BaselineAgent(ArtificialBrain):
                     else:
                         area = 'area ' + msg.split()[-1]
                         self._send_message('Will come to ' + area + ' after dropping ' + self._goal_vic + '.',
-                                          'RescueBot')
+                                           'RescueBot')
             # Store the current location of the human in memory
             if mssgs and mssgs[-1].split()[-1] in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
                                                    '14']:
@@ -908,55 +922,111 @@ class BaselineAgent(ArtificialBrain):
         '''
         Loads trust belief values if agent already collaborated with human before, otherwise trust belief values are initialized using default values.
         '''
-        # Create a dictionary with trust values for all team members
-        trustBeliefs = {}
-        # Set a default starting trust value
-        default = 0.5
+        trustBeliefs = {"search": {}, "rescue": {}}
+        default = 0.0
         trustfile_header = []
-        trustfile_contents = []
-        # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
-        with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
+
+        with open(f"{folder}/beliefs/allTrustBeliefs.csv", newline='', encoding="utf-8") as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+            trustfile_header = next(reader, None)
+
             for row in reader:
-                if trustfile_header == []:
-                    trustfile_header = row
+                if len(row) < 4:
                     continue
-                # Retrieve trust values 
-                if row and row[0] == self._human_name:
-                    name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
+
+                name, task, competence, willingness = row[0], row[1], row[2], row[3]
+
+                if not name or not task:
+                    continue
+
+                competence = float(competence)
+                willingness = float(willingness)
+
+
+                if task in trustBeliefs:
+                    trustBeliefs[task][name] = {
+                        "competence": competence,
+                        "willingness": willingness}
+
+        for task in ["search", "rescue"]:
+            for member in members:
+                if member not in trustBeliefs[task]:
+                    trustBeliefs[task][member] = {
+                        "competence": default,
+                        "willingness": default
+                    }
+
         return trustBeliefs
 
+
+# TODO: extend the function and use the outputs of this function to adapt the agent's behavior defined by the function 'decide_on_actions'
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
+        POSITIVE_UPDATE = 0.1
+        NEGATIVE_UPDATE = -0.2
+        MIN_TRUST = -1.0
+        MAX_TRUST = 1.0
+
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
+            if message == "Remove together":
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["willingness"] += 0.10
+                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+
+            if message == "Remove alone":
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["willingness"] -= 0.20
+                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+
+            if "Remove:" in message:
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["competence"] -= 0.10
+                    trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
+
             if 'Found:' in message:
                 trustBeliefs[self._human_name]['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
                 trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                           1)
+                  
+            # Increase agent trust in a team member that rescued a victim
+            if 'Collect' in message:
+                trustBeliefs[self._human_name]['competence'] += 0.10
+                # Restrict the competence belief to a range of -1 to 1
+                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                if self._human_name in trustBeliefs['rescue']:
+                    trustBeliefs['rescue'][self._human_name]['competence'] += 0.10
+                    # Restrict the competence belief to a range of -1 to 1
+                    trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(trustBeliefs['rescue'][self._human_name]['competence'], -1, 1)
+            if 'Search' in message:
+                area = 'area ' + message.split()[-1]
+                if area in self._searched_rooms:  # If the search was valid
+                    if self._human_name in trustBeliefs['search']:
+                        trustBeliefs['search'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['search'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST,
+                            MAX_TRUST
+                        )
+                else:  # If the human claimed to search but didn't search
+                    if self._human_name in trustBeliefs['search']:
+                        trustBeliefs['search'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['search'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST,
+                            MAX_TRUST
+                        )
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
-        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
+        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+            for task in ["search", "rescue"]:
+                if self._human_name in trustBeliefs[task]:
+                    csv_writer.writerow([
+                        self._human_name, task,
+                        trustBeliefs[task][self._human_name]['competence'],
+                        trustBeliefs[task][self._human_name]['willingness']
+                    ])
 
         return trustBeliefs
 
