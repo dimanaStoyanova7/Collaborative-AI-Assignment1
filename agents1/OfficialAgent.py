@@ -945,10 +945,17 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
+
+# TODO: extend the function and use the outputs of this function to adapt the agent's behavior defined by the function 'decide_on_actions'
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
+        POSITIVE_UPDATE = 0.1
+        NEGATIVE_UPDATE = -0.2
+        MIN_TRUST = -1.0
+        MAX_TRUST = 1.0
+
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
@@ -957,6 +964,21 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs['rescue'][self._human_name]['competence'] += 0.10
                     # Restrict the competence belief to a range of -1 to 1
                     trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(trustBeliefs['rescue'][self._human_name]['competence'], -1, 1)
+            if 'Search' in message:
+                area = 'area ' + message.split()[-1]
+                if area in self._searched_rooms:  # If the search was valid
+                    if self._human_name in trustBeliefs['search']:
+                        trustBeliefs['search'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['search'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST,
+                            MAX_TRUST
+                        )
+                else:  # If the human claimed to search but didn't search
+                    if self._human_name in trustBeliefs['search']:
+                        trustBeliefs['search'][self._human_name]['competence'] = np.clip(
+                            trustBeliefs['search'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST,
+                            MAX_TRUST
+                        )
+
 
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
