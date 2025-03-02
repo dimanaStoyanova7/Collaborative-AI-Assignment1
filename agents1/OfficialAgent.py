@@ -997,6 +997,12 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs["search"][self._human_name]["competence"] -= 0.10
                     trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
 
+            if 'Found:' in message:
+                trustBeliefs["rescue"][self._human_name]['competence'] += 0.10
+                # Restrict the competence belief to a range of -1 to 1
+                trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                                                                          1)
+                  
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
                 # Identify which victim it is
@@ -1016,6 +1022,7 @@ class BaselineAgent(ArtificialBrain):
                         trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
                             trustBeliefs['rescue'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
                         )
+                        
             if 'Search' in message:
                 area = 'area ' + message.split()[-1]
                 if area in self._searched_rooms:  # If the search was valid
@@ -1030,8 +1037,6 @@ class BaselineAgent(ArtificialBrain):
                             trustBeliefs['search'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST,
                             MAX_TRUST
                         )
-
-
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w', newline='') as csv_file:
