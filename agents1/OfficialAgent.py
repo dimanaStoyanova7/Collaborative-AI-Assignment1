@@ -456,6 +456,9 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
+
+                        current_willingness = trustBeliefs['search'][self._human_name]['willingness']
+
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -477,19 +480,29 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            if not self._remove:
+                            if current_willingness >= 0:
+                                if not self._remove:
+                                    self._answered = True
+                                # Tell the human to come over and be idle untill human arrives
+                                if not state[{'is_human_agent': True}]:
+                                    self._send_message(
+                                        'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
+                                        'RescueBot')
+                                    return None, {}
+                                # Tell the human to remove the obstacle when he/she arrives
+                                if state[{'is_human_agent': True}]:
+                                    self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
+                                                      'RescueBot')
+                                    return None, {}
+                            else:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message(
-                                    'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
-                                    'RescueBot')
-                                return None, {}
-                            # Tell the human to remove the obstacle when he/she arrives
-                            if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
-                                return None, {}
+                                self._waiting = False
+                                self._send_message('Removing stones blocking ' + str(
+                                    self._door['room_name']) + ' alone due to low willingness.',
+                                                   'RescueBot')
+                                self._phase = Phase.ENTER_ROOM
+                                self._remove = False
+                                return RemoveObject.__name__, {'object_id': info['obj_id']}
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
@@ -915,7 +928,7 @@ class BaselineAgent(ArtificialBrain):
 
         with open(f"{folder}/beliefs/allTrustBeliefs.csv", newline='', encoding="utf-8") as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
-            trustfile_header = next(reader, None)  # Read header row
+            trustfile_header = next(reader, None)
 
             for row in reader:
                 if len(row) < 4:
@@ -958,6 +971,21 @@ class BaselineAgent(ArtificialBrain):
 
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
+            if message == "Remove together":
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["willingness"] += 0.10
+                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+
+            if message == "Remove alone":
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["willingness"] -= 0.20
+                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+
+            if "Remove:" in message:
+                if self._human_name in trustBeliefs["search"]:
+                    trustBeliefs["search"][self._human_name]["competence"] -= 0.10
+                    trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
+
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
                 if self._human_name in trustBeliefs['rescue']:
@@ -982,7 +1010,7 @@ class BaselineAgent(ArtificialBrain):
 
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
-        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
+        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
             for task in ["search", "rescue"]:

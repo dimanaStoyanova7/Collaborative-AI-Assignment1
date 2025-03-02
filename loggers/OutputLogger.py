@@ -45,11 +45,6 @@ def output_logger(fld):
             if row:
                 res = {trustfile_header[i] : row[i] for i in range(len(trustfile_header))}
                 trustfile_contents.append(res)
-    # Retrieve the stored trust belief values
-    name = trustfile_contents[-1]['name']
-    task = trustfile_contents[-1]['task']
-    competence = trustfile_contents[-1]['competence']
-    willingness = trustfile_contents[-1]['willingness']
     # Retrieve the number of ticks to finish the task, score, and completeness
     no_ticks = action_contents[-1]['tick_nr']
     score = action_contents[-1]['score']
@@ -60,6 +55,8 @@ def output_logger(fld):
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(['completeness','score','no_ticks','agent_actions','human_actions'])
         csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions)])
-    with open(fld + '/beliefs/allTrustBeliefs.csv', mode='a+') as csv_file:
+    with open(fld + '/beliefs/allTrustBeliefs.csv', mode='a+', newline='') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow([name,task,competence,willingness])
+        for entry in trustfile_contents:
+            if entry:
+                csv_writer.writerow([entry['name'], entry['task'], entry['competence'], entry['willingness']])
