@@ -340,11 +340,11 @@ class BaselineAgent(ArtificialBrain):
 
                         # Retrieve the human's willingness
                         if self._human_name in trustBeliefs['rescue']:
-                            human_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
+                            current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
                         else:
-                            human_willingness = 0.0
+                            current_willingness = 0.0
 
-                        if human_willingness < 0.0:
+                        if current_willingness < 0.0:
                             self._rescue = 'together'
                             self._send_message('Moving to ' + str(
                                 self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you because I do not fully trust your ability to rescue alone.',
@@ -680,8 +680,13 @@ class BaselineAgent(ArtificialBrain):
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
 
-                current_willingness = trustBeliefs['search'][self._human_name]['willingness']
-                current_competence = trustBeliefs['search'][self._human_name]['competence']
+                if self._human_name in trustBeliefs['rescue']:
+                    current_willingness = trustBeliefs['search'][self._human_name]['willingness']
+                    current_competence = trustBeliefs['search'][self._human_name]['competence']
+                else:
+                    current_willingness = 0.0
+                    current_competence = 0.0
+
                 avg_trustworthiness = (current_competence + current_willingness) / 2
 
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
