@@ -337,7 +337,19 @@ class BaselineAgent(ArtificialBrain):
                     if self._goal_vic in self._found_victims \
                             and str(self._door['room_name']) == self._found_victim_logs[self._goal_vic]['room'] \
                             and not self._remove:
-                        if self._condition == 'weak':
+
+                        # Retrieve the human's willingness
+                        if self._human_name in trustBeliefs['rescue']:
+                            human_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
+                        else:
+                            human_willingness = 0.0
+
+                        if human_willingness < 0.0:
+                            self._rescue = 'together'
+                            self._send_message('Moving to ' + str(
+                                self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you because I do not fully trust your ability to rescue alone.',
+                                               'RescueBot')
+                        elif self._condition == 'weak':
                             self._send_message('Moving to ' + str(
                                 self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you.',
                                               'RescueBot')
@@ -491,7 +503,7 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            if current_willingness >= 0:
+                            if current_willingness >= 0.0:
                                 if not self._remove:
                                     self._answered = True
                                 # Tell the human to come over and be idle untill human arrives
@@ -667,24 +679,40 @@ class BaselineAgent(ArtificialBrain):
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
+
+                current_willingness = trustBeliefs['search'][self._human_name]['willingness']
+                current_competence = trustBeliefs['search'][self._human_name]['competence']
+                avg_trustworthiness = (current_competence + current_willingness) / 2
+
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
-                    self._rescue = 'together'
-                    self._answered = True
-                    self._waiting = False
-                    # Tell the human to come over and help carry the mildly injured victim
-                    if not state[{'is_human_agent': True}]:
-                        self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
-                            self._recent_vic) + ' together.', 'RescueBot')
-                    # Tell the human to carry the mildly injured victim together
-                    if state[{'is_human_agent': True}]:
-                        self._send_message('Lets carry ' + str(
-                            self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
-                            self._recent_vic) + '.', 'RescueBot')
-                    self._goal_vic = self._recent_vic
-                    self._recent_vic = None
-                    self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    if avg_trustworthiness >= 0.0:
+                        self._rescue = 'together'
+                        self._answered = True
+                        self._waiting = False
+                        # Tell the human to come over and help carry the mildly injured victim
+                        if not state[{'is_human_agent': True}]:
+                            self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
+                                self._recent_vic) + ' together.', 'RescueBot')
+                        # Tell the human to carry the mildly injured victim together
+                        if state[{'is_human_agent': True}]:
+                            self._send_message('Lets carry ' + str(
+                                self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
+                                self._recent_vic) + '.', 'RescueBot')
+                        self._goal_vic = self._recent_vic
+                        self._recent_vic = None
+                        self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    else:
+                        self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + 'alone because I do not fully trust you yet.',
+                                           'RescueBot')
+                        self._rescue = 'alone'
+                        self._answered = True
+                        self._waiting = False
+                        self._goal_vic = self._recent_vic
+                        self._goal_loc = self._remaining[self._goal_vic]
+                        self._recent_vic = None
+                        self._phase = Phase.PLAN_PATH_TO_VICTIM
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue alone' and 'mild' in self._recent_vic:
