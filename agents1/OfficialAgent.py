@@ -438,7 +438,6 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
                         else:
                             return None, {}
 
