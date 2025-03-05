@@ -337,19 +337,7 @@ class BaselineAgent(ArtificialBrain):
                     if self._goal_vic in self._found_victims \
                             and str(self._door['room_name']) == self._found_victim_logs[self._goal_vic]['room'] \
                             and not self._remove:
-
-                        # Retrieve the human's willingness
-                        if self._human_name in trustBeliefs['rescue']:
-                            current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
-                        else:
-                            current_willingness = 0.0
-
-                        if current_willingness < 0.0:
-                            self._rescue = 'together'
-                            self._send_message('Moving to ' + str(
-                                self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you because I do not fully trust your ability to rescue alone.',
-                                               'RescueBot')
-                        elif self._condition == 'weak':
+                        if self._condition == 'weak':
                             self._send_message('Moving to ' + str(
                                 self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you.',
                                               'RescueBot')
@@ -681,8 +669,8 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
 
                 if self._human_name in trustBeliefs['rescue']:
-                    current_willingness = trustBeliefs['search'][self._human_name]['willingness']
-                    current_competence = trustBeliefs['search'][self._human_name]['competence']
+                    current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
+                    current_competence = trustBeliefs['rescue'][self._human_name]['competence']
                 else:
                     current_willingness = 0.0
                     current_competence = 0.0
