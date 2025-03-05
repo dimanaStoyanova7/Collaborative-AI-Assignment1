@@ -76,6 +76,8 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+        # Property to record start time when waiting for human response
+        self._waiting_start = None
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -84,7 +86,8 @@ class BaselineAgent(ArtificialBrain):
                                     algorithm=Navigator.A_STAR_ALGORITHM)
 
     def filter_observations(self, state):
-        # Filtering of the world state before deciding on an action 
+        # Filtering of the world state before deciding on an action
+        self._tick = state['World']['nr_ticks']
         return state
 
     def decide_on_actions(self, state):
@@ -326,7 +329,7 @@ class BaselineAgent(ArtificialBrain):
                         and self._door['room_name'] != self._found_victim_logs[self._goal_vic]['room']:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                    # human lied about finding victim so decrease willingness
+                    # human lied about finding victim so decrease competence
                     self._update_trust('search', 'negative', 'competence', trustBeliefs)
 
                 # Check if the human already searched the previously identified area without finding the target victim
@@ -404,6 +407,7 @@ class BaselineAgent(ArtificialBrain):
                             # Determine the next area to explore if the human tells the agent not to remove the obstacle
                             #human tells the agent not to remove the obstacle means human is not efficient so decrease competence
                             self._update_trust('search', 'negative', 'competence', trustBeliefs)
+                            self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the rock
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -414,7 +418,14 @@ class BaselineAgent(ArtificialBrain):
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            # TODO : check are we waiting too long?
+                            # Checking timeout for waiting for human to remove rock
+                            if self._waiting and self._waiting_start is not None and ((state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time):
+                                self._send_message('I have been waiting too long for a response regarding rock removal. Moving on.', 'RescueBot')
+                                self._waiting = False
+                                self._answered = True
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+                                self._update_trust('search', 'negative', 'willingness', trustBeliefs)
                             if not self._remove:
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
@@ -430,7 +441,6 @@ class BaselineAgent(ArtificialBrain):
                         # Remain idle untill the human communicates what to do with the identified obstacle 
                         else:
                             return None, {}
-                            # TODO : check are we waiting too long?
 
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'tree' in info[
                         'obj_id']:
@@ -443,6 +453,15 @@ class BaselineAgent(ArtificialBrain):
                                 self._searched_rooms).replace('area ', '') + ' \
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
+                            self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the tree
+                        if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
+                            self._send_message('I have been waiting too long for a response regarding tree removal. Moving on.', 'RescueBot')
+                            self._waiting = False
+                            self._answered = True
+                            self._to_search.append(self._door['room_name'])
+                            self._phase = Phase.FIND_NEXT_GOAL
+                            self._update_trust('search', 'negative', 'willingness', trustBeliefs)
+                            return None, {}
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -469,10 +488,8 @@ class BaselineAgent(ArtificialBrain):
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
-                        # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
-                            # TODO : check are we waiting too long?
 
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
                             info['obj_id']:
@@ -486,6 +503,7 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
+                            self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the stone
 
                         current_willingness = trustBeliefs['search'][self._human_name]['willingness']
 
@@ -512,6 +530,14 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
+                            if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
+                                self._send_message('I have been waiting too long for a response regarding stone removal. Moving on.', 'RescueBot')
+                                self._waiting = False
+                                self._answered = True
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+                                self._update_trust('search', 'negative', 'willingness', trustBeliefs)
+                                return None, {}
                             if current_willingness >= 0:
                                 if not self._remove:
                                     self._answered = True
@@ -520,7 +546,6 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message(
                                         'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                         'RescueBot')
-                                    # TODO : check are we waiting too long?
                                     return None, {}
                                 # Tell the human to remove the obstacle when he/she arrives
                                 if state[{'is_human_agent': True}]:
@@ -536,9 +561,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._phase = Phase.ENTER_ROOM
                                 self._remove = False
                                 return RemoveObject.__name__, {'object_id': info['obj_id']}
-                        # Remain idle until the human communicates what to do with the identified obstacle
                         else:
-                            # TODO : check are we waiting too long?
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
@@ -797,9 +820,9 @@ class BaselineAgent(ArtificialBrain):
                         if self._rescue == 'together' and ('critical' in info['obj_id'] or (
                                 'mild' in info['obj_id'] and self._condition == 'weak')):
                             if self._task_start_time == 0:
-                                self._task_start_time = state['World']['tick']
+                                self._task_start_time = state['World']['nr_ticks']
 
-                            current_tick = state['World']['tick']
+                            current_tick = state['World']['nr_ticks']
 
                             if current_tick - self._task_start_time > self._max_wait_time:
                                 # Human took too long to arrive, decrease willingness
@@ -1048,6 +1071,7 @@ class BaselineAgent(ArtificialBrain):
                 # Restrict the competence belief to a range of -1 to 1
                 trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                           1)
+
                   
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
