@@ -76,7 +76,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
-        # Property to record start time when waiting for human response
+        # Property to record start time when waiting for human response action
         self._waiting_start = None
 
     def initialize(self):
@@ -420,12 +420,9 @@ class BaselineAgent(ArtificialBrain):
                             -1] == 'Remove' or self._remove:
                             # Checking timeout for waiting for human to remove rock
                             if self._waiting and self._waiting_start is not None and ((state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time):
-                                self._send_message('I have been waiting too long for a response regarding rock removal. Moving on.', 'RescueBot')
-                                self._waiting = False
-                                self._answered = True
-                                self._to_search.append(self._door['room_name'])
-                                self._phase = Phase.FIND_NEXT_GOAL
+                                self._send_message('I have been waiting too long for a response regarding rock removal.', 'RescueBot') # TODO: Remove
                                 self._update_trust('search', 'negative', 'willingness', trustBeliefs)
+                                # return None, {} # TODO: To remove later
                             if not self._remove:
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
@@ -453,14 +450,11 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
                             self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the tree
+                        # the robot waits too long for the human to tell the robot to remove the tree so decrease willingness
                         if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding tree removal. Moving on.', 'RescueBot')
-                            self._waiting = False
-                            self._answered = True
-                            self._to_search.append(self._door['room_name'])
-                            self._phase = Phase.FIND_NEXT_GOAL
                             self._update_trust('search', 'negative', 'willingness', trustBeliefs)
-                            return None, {}
+                            # return None, {} # TODO: To remove later
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -529,14 +523,11 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
+                            # the robot waits too long for the human to remove the stone together so decrease willingness
                             if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
-                                self._send_message('I have been waiting too long for a response regarding stone removal. Moving on.', 'RescueBot')
-                                self._waiting = False
-                                self._answered = True
-                                self._to_search.append(self._door['room_name'])
-                                self._phase = Phase.FIND_NEXT_GOAL
+                                self._send_message('I have been waiting too long for a response regarding stone removal.', 'RescueBot') # TODO: Remove
                                 self._update_trust('search', 'negative', 'willingness', trustBeliefs)
-                                return None, {}
+                                # return None, {} # TODO: To remove later
                             if current_willingness >= 0:
                                 if not self._remove:
                                     self._answered = True
