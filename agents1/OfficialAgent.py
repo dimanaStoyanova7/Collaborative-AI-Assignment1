@@ -293,7 +293,7 @@ class BaselineAgent(ArtificialBrain):
                     self._door = state.get_room_doors(victim_location)[0]
                     self._doormat = state.get_room(victim_location)[-1]['doormat']
                     #human found victim and reported them but didn't provide exact location
-                    self._update_trust('search', 'negative', 'competence', trustBeliefs)
+                    self._update_trust('search', 'negative', 'willingness', trustBeliefs)
 
                     # Handle special case for 'area 1'
                     if self._door['room_name'] == 'area 1':
@@ -316,8 +316,9 @@ class BaselineAgent(ArtificialBrain):
             if Phase.FOLLOW_PATH_TO_ROOM == self._phase:
                 # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
-                    # human independently completes a task, demonstrating competence and proactivity
+                    # human independently completes a task, demonstrating competence and willingness
                     self._update_trust('search', 'positive', 'competence', trustBeliefs)
+                    self._update_trust('search', 'positive', 'willingness', trustBeliefs)
                     # Reset current door and switch to finding the next goal
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
@@ -328,7 +329,7 @@ class BaselineAgent(ArtificialBrain):
                         and self._door['room_name'] != self._found_victim_logs[self._goal_vic]['room']:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                    # human lied about finding victim so decrease competence
+                    # human identified the wrong victim so decrease competence
                     self._update_trust('search', 'negative', 'competence', trustBeliefs)
 
                 # Check if the human already searched the previously identified area without finding the target victim
@@ -404,8 +405,6 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._waiting = True
                             # Determine the next area to explore if the human tells the agent not to remove the obstacle
-                            #human tells the agent not to remove the obstacle means human is not efficient so decrease competence
-                            self._update_trust('search', 'negative', 'competence', trustBeliefs)
                             self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the rock
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -457,8 +456,6 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            # human tells the agent not to remove the obstacle means human is not efficient so decrease competence
-                            self._update_trust('search', 'negative', 'competence', trustBeliefs)
                             self._answered = True
                             self._waiting = False
                             # Add area to the to do list
@@ -467,8 +464,9 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            # human tells the agent communicates properly about obsticle only robot can remove so increase competence
+                            # human tells the agent communicates properly about obstacle only robot can remove so increase competence
                             self._update_trust('search', 'positive', 'competence', trustBeliefs)
+                            self._update_trust('search', 'positive', 'willingness', trustBeliefs)
                             if not self._remove:
                                 self._answered = True
                                 self._waiting = False
@@ -502,8 +500,6 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            # human tells the agent not to remove the obstacle means human is not efficient so decrease competence
-                            self._update_trust('search', 'negative', 'competence', trustBeliefs)
                             self._answered = True
                             self._waiting = False
                             # Add area to the to do list
@@ -716,8 +712,7 @@ class BaselineAgent(ArtificialBrain):
                     # if human is weak : they are NOT able to carry the victim alone so the competence should be decreased
                     # but if human is normal/strong : they are  able to carry the victim alone but they still request help: willingness is decreased
                     # the model will benefit more from underestimating so decrease competence
-                    if self._condition == 'weak':
-                        self._update_trust('rescue', 'negative', 'willingness', trustBeliefs)
+                    self._update_trust('rescue', 'negative', 'willingness', trustBeliefs)
                     # Tell the human to come over and help carry the mildly injured victim
                     if not state[{'is_human_agent': True}]:
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
