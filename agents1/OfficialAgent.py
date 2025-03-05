@@ -411,7 +411,7 @@ class BaselineAgent(ArtificialBrain):
                             -1] == 'Remove' or self._remove:
                             if not self._remove:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
+                            # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
@@ -421,7 +421,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
+                        # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
 
@@ -1009,7 +1009,7 @@ class BaselineAgent(ArtificialBrain):
             if 'Found:' in message:
                 trustBeliefs["rescue"][self._human_name]['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs["rescue"][self._human_name]['competence'], -1,
                                                                           1)
                   
             # Increase agent trust in a team member that rescued a victim
