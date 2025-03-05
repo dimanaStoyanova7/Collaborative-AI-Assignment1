@@ -41,7 +41,6 @@ class Phase(enum.Enum):
 class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
-        self._task_start_time = 0
         self._max_wait_time = 100 # TODO: probably change (now it is 10 seconds, assuming 10 ticks = 1 second)
         # self._pending_rescues = {}  # Track promised rescues - human promises a rescue when they send a "Rescue:" message
         # Initialization of some relevant variables
@@ -806,21 +805,8 @@ class BaselineAgent(ArtificialBrain):
                         self._searched_rooms) == 0 and 'class_inheritance' in info and 'CollectableBlock' in info[
                         'class_inheritance'] and 'mild' in info['obj_id'] and info['location'] in self._roomtiles:
                         objects.append(info)
-
-                        if self._rescue == 'together' and ('critical' in info['obj_id'] or (
-                                'mild' in info['obj_id'] and self._condition == 'weak')):
-                            if self._task_start_time == 0:
-                                self._task_start_time = state['World']['nr_ticks']
-
-                            current_tick = state['World']['nr_ticks']
-
-                            if current_tick - self._task_start_time > self._max_wait_time:
-                                # Human took too long to arrive, decrease willingness
-                                self._update_trust('rescue', 'negative', 'willingness', trustBeliefs)
-                                self._task_start_time = 0
-
                         # Remain idle when the human has not arrived at the location
-                        if not self._human_name in info['name']:
+                        if not self._human_name in info['name']: # TODO: implement waiting
                             self._waiting = True
                             self._moving = False
                             return None, {}
