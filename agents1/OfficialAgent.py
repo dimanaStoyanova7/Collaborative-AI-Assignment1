@@ -675,7 +675,7 @@ class BaselineAgent(ArtificialBrain):
                     current_willingness = 0.0
                     current_competence = 0.0
 
-                avg_trustworthiness = (current_competence + current_willingness) / 2
+                avg_trustworthiness = 0.5 * (current_competence + current_willingness)
 
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
                 if self.received_messages_content and self.received_messages_content[
