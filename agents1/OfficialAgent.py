@@ -770,7 +770,7 @@ class BaselineAgent(ArtificialBrain):
                         'class_inheritance'] and 'mild' in info['obj_id'] and info['location'] in self._roomtiles:
                         objects.append(info)
                         # Remain idle when the human has not arrived at the location
-                        if not self._human_name in info['name']:
+                        if self._rescue == 'together' and not self._human_name in info['name']:
                             self._waiting = True
                             self._moving = False
                             return None, {}
