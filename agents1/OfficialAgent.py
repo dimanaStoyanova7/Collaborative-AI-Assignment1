@@ -41,7 +41,8 @@ class Phase(enum.Enum):
 class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
-        self._max_wait_time = 100 # TODO: probably change (now it is 10 seconds, assuming 10 ticks = 1 second)
+        # Robot will wait max 15 seconds for the human's response (15 should be enough time to notice the message and provide a response)
+        self._max_wait_time = 150
         # self._pending_rescues = {}  # Track promised rescues - human promises a rescue when they send a "Rescue:" message
         # Initialization of some relevant variables
         self._tick = None
@@ -154,7 +155,7 @@ class BaselineAgent(ArtificialBrain):
                 Each critical victim (critically injured girl/critically injured elderly woman/critically injured man/critically injured dog) adds 6 points to our score, \
                 each mild victim (mildly injured boy/mildly injured elderly man/mildly injured woman/mildly injured cat) 3 points. \
                 If you are ready to begin our mission, you can simply start moving.', 'RescueBot')
-                # Wait untill the human starts moving before going to the next phase, otherwise remain idle
+                # Wait until the human starts moving before going to the next phase, otherwise remain idle
                 if not state[{'is_human_agent': True}]:
                     self._phase = Phase.FIND_NEXT_GOAL
                 else:
@@ -321,9 +322,9 @@ class BaselineAgent(ArtificialBrain):
             if Phase.FOLLOW_PATH_TO_ROOM == self._phase:
                 # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
-                    # human independently completes a task, demonstrating competence and willingness
-                    self._update_trust('search', 'positive', 'competence', trustBeliefs)
-                    self._update_trust('search', 'positive', 'willingness', trustBeliefs)
+                    # Human independently completes a task, demonstrating competence and willingness
+                    self._update_trust('rescue', 'positive', 'competence', trustBeliefs, self._folder)
+                    self._update_trust('rescue', 'positive', 'willingness', trustBeliefs, self._folder)
                     # Reset current door and switch to finding the next goal
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
@@ -405,8 +406,16 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
                                               'RescueBot')
                             self._waiting = True
-                            # Determine the next area to explore if the human tells the agent not to remove the obstacle
                             self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the rock
+                        # Checking timeout for waiting for human to remove rock
+                        if self._waiting and self._waiting_start is not None and (
+                                (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time):
+                            self._send_message(
+                                'I have been waiting too long for a response regarding rock removal.',
+                                'RescueBot')  # TODO: Remove
+                            self._update_trust('search', 'negative', 'willingness', trustBeliefs, self._folder)
+                            # return None, {} # TODO: To remove later
+                        # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -417,11 +426,6 @@ class BaselineAgent(ArtificialBrain):
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            # Checking timeout for waiting for human to remove rock
-                            if self._waiting and self._waiting_start is not None and ((state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time):
-                                self._send_message('I have been waiting too long for a response regarding rock removal.', 'RescueBot') # TODO: Remove
-                                self._update_trust('search', 'negative', 'willingness', trustBeliefs)
-                                # return None, {} # TODO: To remove later
                             if not self._remove:
                                 self._answered = True
                             # Tell the human to come over and be idle until human arrives
@@ -450,10 +454,10 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
                             self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the tree
-                        # the robot waits too long for the human to tell the robot to remove the tree so decrease willingness
+                        # The robot waits too long for the human to tell the robot to remove the tree so decrease willingness
                         if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding tree removal. Moving on.', 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness', trustBeliefs)
+                            self._update_trust('search', 'negative', 'willingness', trustBeliefs, self._folder)
                             # return None, {} # TODO: To remove later
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
@@ -477,7 +481,7 @@ class BaselineAgent(ArtificialBrain):
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
-                        # Remain idle untill the human communicates what to do with the identified obstacle
+                        # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
 
@@ -497,7 +501,14 @@ class BaselineAgent(ArtificialBrain):
 
                         current_trust = 0.5 * (trustBeliefs['search'][self._human_name]['willingness'] + trustBeliefs['search'][self._human_name]['competence'])
 
-                        # Determine the next area to explore if the human tells the agent not to remove the obstacle          
+                        # The robot waits too long for the human to remove the stone together so decrease willingness
+                        if self._waiting and self._waiting_start is not None and (
+                                state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
+                            self._send_message('I have been waiting too long for a response regarding stone removal.',
+                                               'RescueBot')  # TODO: Remove
+                            self._update_trust('search', 'negative', 'willingness', trustBeliefs, self._folder)
+                            # return None, {} # TODO: To remove later
+                        # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -518,16 +529,11 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            # the robot waits too long for the human to remove the stone together so decrease willingness
-                            if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
-                                self._send_message('I have been waiting too long for a response regarding stone removal.', 'RescueBot') # TODO: Remove
-                                self._update_trust('search', 'negative', 'willingness', trustBeliefs)
-                                # return None, {} # TODO: To remove later
                             # Remove together if the human is trustworthy
                             if current_trust >= 0.0:
                                 if not self._remove:
                                     self._answered = True
-                                # Tell the human to come over and be idle untill human arrives
+                                # Tell the human to come over and be idle until human arrives
                                 if not state[{'is_human_agent': True}]:
                                     self._send_message(
                                         'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
@@ -564,9 +570,9 @@ class BaselineAgent(ArtificialBrain):
                 # Check if the target victim has been rescued by the human, and switch to finding the next goal
                 if self._goal_vic in self._collected_victims:
                     self._current_door = None
-                    #human is performing well so increase competence and willingness
-                    self._update_trust('search', 'positive', 'willingness', trustBeliefs)
-                    self._update_trust('search', 'positive', 'competence', trustBeliefs)
+                    # Human is performing well so increase competence and willingness
+                    self._update_trust('rescue', 'positive', 'willingness', trustBeliefs, self._folder)
+                    self._update_trust('rescue', 'positive', 'competence', trustBeliefs, self._folder)
                     self._phase = Phase.FIND_NEXT_GOAL
 
                 # Check if the target victim is found in a different area, and start moving there
@@ -676,8 +682,8 @@ class BaselineAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
-                    # human communicated poorly -> decrease competence
-                    self._update_trust('search', 'negative', 'competence', trustBeliefs)
+                    # Human communicated poorly -> decrease competence
+                    self._update_trust('search', 'negative', 'competence', trustBeliefs, self._folder)
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
                     self._found_victims.remove(self._goal_vic)
@@ -764,7 +770,7 @@ class BaselineAgent(ArtificialBrain):
                     self._todo.append(self._recent_vic)
                     self._recent_vic = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Remain idle untill the human communicates to the agent what to do with the found victim
+                # Remain idle until the human communicates to the agent what to do with the found victim
                 if self.received_messages_content and self._waiting and self.received_messages_content[
                     -1] != 'Rescue' and self.received_messages_content[-1] != 'Continue':
                     return None, {}
@@ -1058,9 +1064,9 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
 
             if 'Found:' in message:
-                trustBeliefs["rescue"][self._human_name]['competence'] += 0.10
+                trustBeliefs["rescue"][self._human_name]["competence"] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs["rescue"][self._human_name]['competence'] = np.clip(trustBeliefs["rescue"][self._human_name]['competence'], -1, 1)
+                trustBeliefs["rescue"][self._human_name]["competence"] = np.clip(trustBeliefs["rescue"][self._human_name]["competence"], -1, 1)
                   
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
@@ -1111,7 +1117,7 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _update_trust(self, task, outcome, dimension, trustBeliefs):
+    def _update_trust(self, task, outcome, dimension, trustBeliefs, folder):
         """
         Updates trust based on direct observations.
         :param task: 'search' or 'rescue' task category
@@ -1133,6 +1139,18 @@ class BaselineAgent(ArtificialBrain):
                 trustBeliefs[task][self._human_name][dimension] = np.clip(
                     trustBeliefs[task][self._human_name][dimension] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
                 )
+
+        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
+        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+            for task in ["search", "rescue"]:
+                if self._human_name in trustBeliefs[task]:
+                    csv_writer.writerow([
+                        self._human_name, task,
+                        trustBeliefs[task][self._human_name]['competence'],
+                        trustBeliefs[task][self._human_name]['willingness']
+                    ])
 
     def _send_message(self, mssg, sender):
         '''
