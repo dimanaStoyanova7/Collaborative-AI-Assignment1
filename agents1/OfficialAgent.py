@@ -331,8 +331,9 @@ class BaselineAgent(ArtificialBrain):
                 # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
                     # Human independently completes a task, demonstrating competence and willingness
-                    self._update_trust('rescue', 'positive', 'competence')
-                    self._update_trust('rescue', 'positive', 'willingness')
+                    # Use task rescue_mild because if a victim was rescued only by human, the victim was mild
+                    self._update_trust('rescue_mild', 'positive', 'competence')
+                    self._update_trust('rescue_mild', 'positive', 'willingness')
                     # Reset current door and switch to finding the next goal
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
@@ -421,7 +422,7 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message(
                                 'I have been waiting too long for a response regarding rock removal. Moving on.',
                                 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Continue to the next goal since this rock can only be removed together with the human
                             self._answered = True
                             self._waiting = False
@@ -473,7 +474,7 @@ class BaselineAgent(ArtificialBrain):
                         # The robot waits too long for the human to tell the robot to remove the tree so decrease willingness
                         if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding tree removal. Removing tree alone.', 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Remove tree alone if human took too long to respond
                             self._answered = True
                             self._waiting = False
@@ -535,7 +536,7 @@ class BaselineAgent(ArtificialBrain):
                         if self._waiting and self._waiting_start is not None and (
                                 state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding stones removal. Removing stone alone.', 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Remove stone alone if human took too long to respond
                             self._answered = True
                             self._waiting = False
@@ -609,8 +610,9 @@ class BaselineAgent(ArtificialBrain):
                 if self._goal_vic in self._collected_victims:
                     self._current_door = None
                     # Human is performing well so increase competence and willingness
-                    self._update_trust('rescue', 'positive', 'willingness')
-                    self._update_trust('rescue', 'positive', 'competence')
+                    # Use task rescue_mild because if a victim was rescued only by human, the victim was mild
+                    self._update_trust('rescue_mild', 'positive', 'willingness')
+                    self._update_trust('rescue_mild', 'positive', 'competence')
                     self._phase = Phase.FIND_NEXT_GOAL
 
                 # Check if the target victim is found in a different area, and start moving there
@@ -754,8 +756,8 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message(
                             'I have been waiting too long for a response regarding the rescue of ' + self._recent_vic + '. Moving on.',
                             'RescueBot')
-                        self._update_trust('rescue', 'negative', 'willingness')
-                        self._update_trust('rescue', 'negative', 'competence')
+                        self._update_trust('rescue_critical', 'negative', 'willingness')
+                        self._update_trust('rescue_critical', 'negative', 'competence')
                         # Move on if human took too long to respond and victim is critical since agent cannot rescue alone
                         self._answered = True
                         self._waiting = False
@@ -767,8 +769,8 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message(
                             'I have been waiting too long for a response regarding the rescue of ' + self._recent_vic + '. Rescuing victim alone.',
                             'RescueBot')
-                        self._update_trust('rescue', 'negative', 'willingness')
-                        self._update_trust('rescue', 'negative', 'competence')
+                        self._update_trust('rescue_mild', 'negative', 'willingness')
+                        self._update_trust('rescue_mild', 'negative', 'competence')
                         # Rescue victim alone if human took too long to respond
                         self._rescue = 'alone'
                         self._answered = True
@@ -1088,7 +1090,7 @@ class BaselineAgent(ArtificialBrain):
         '''
         Loads trust belief values if agent already collaborated with human before, otherwise trust belief values are initialized using default values.
         '''
-        trustBeliefs = {"search": {}, "rescue": {}}
+        trustBeliefs = {"search": {}, "remove": {}, "rescue_mild": {}, "rescue_critical": {}}
         default = 0.0
         trustfile_header = []
 
@@ -1114,7 +1116,7 @@ class BaselineAgent(ArtificialBrain):
                         "competence": competence,
                         "willingness": willingness}
 
-        for task in ["search", "rescue"]:
+        for task in ["search", "remove", "rescue_mild", "rescue_critical"]:
             for member in members:
                 if member not in trustBeliefs[task]:
                     trustBeliefs[task][member] = {
@@ -1139,25 +1141,25 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             if message == "Remove together":
                 if self._human_name in trustBeliefs["search"]:
-                    trustBeliefs["search"][self._human_name]["willingness"] += POSITIVE_UPDATE
-                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+                    trustBeliefs["remove"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["remove"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
 
             if message == "Remove alone":
                 if self._human_name in trustBeliefs["search"] and trustBeliefs["search"][self._human_name]["competence"] < 0.5:
-                    trustBeliefs["search"][self._human_name]["willingness"] -= POSITIVE_UPDATE
-                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+                    trustBeliefs["remove"][self._human_name]["willingness"] -= POSITIVE_UPDATE
+                    trustBeliefs["remove"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
 
             if "Remove:" in message:
                 if self._human_name in trustBeliefs["search"]:
-                    trustBeliefs["search"][self._human_name]["competence"] -= POSITIVE_UPDATE
-                    trustBeliefs["search"][self._human_name]["willingness"] += POSITIVE_UPDATE
-                    trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
-                    trustBeliefs["search"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
+                    trustBeliefs["remove"][self._human_name]["competence"] -= POSITIVE_UPDATE
+                    trustBeliefs["remove"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["remove"][self._human_name]["competence"] = np.clip(trustBeliefs["search"][self._human_name]["competence"], -1, 1)
+                    trustBeliefs["remove"][self._human_name]["willingness"] = np.clip(trustBeliefs["search"][self._human_name]["willingness"], -1, 1)
 
             if 'Found:' in message:
                 if self._human_name in trustBeliefs["rescue"]:
-                    trustBeliefs["rescue"][self._human_name]["competence"] += POSITIVE_UPDATE
-                    trustBeliefs["rescue"][self._human_name]["competence"] = np.clip(trustBeliefs["rescue"][self._human_name]["competence"], -1, 1)
+                    trustBeliefs["search"][self._human_name]["competence"] += POSITIVE_UPDATE
+                    trustBeliefs["search"][self._human_name]["competence"] = np.clip(trustBeliefs["rescue"][self._human_name]["competence"], -1, 1)
                   
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
@@ -1168,16 +1170,27 @@ class BaselineAgent(ArtificialBrain):
                     victim = ' '.join(message.split()[1:5])
 
                 # If the rescue was valid (victim is in collected victims list)
-                if victim in self._collected_victims:
+                if victim in self._collected_victims and victim :
                     if self._human_name in trustBeliefs['rescue']:
-                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
-                            trustBeliefs['rescue'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST, MAX_TRUST
-                        )
+                        if 'mild' in self._goal_vic:
+                            trustBeliefs['rescue_mild'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_mild'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
+                        if 'critical' in self._goal_vic:
+                            trustBeliefs['rescue_critical'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_critical'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST,
+                                MAX_TRUST
+                            )
                 else:  # If the human claimed to rescue but did not
                     if self._human_name in trustBeliefs['rescue']:
-                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
-                            trustBeliefs['rescue'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
-                        )
+                        if 'mild' in self._goal_vic:
+                            trustBeliefs['rescue_mild'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_mild'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
+                        if 'critical' in self._goal_vic:
+                            trustBeliefs['rescue_critical'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_critical'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
                         
             if 'Search' in message:
                 area = 'area ' + message.split()[-1]
@@ -1194,20 +1207,40 @@ class BaselineAgent(ArtificialBrain):
                             MAX_TRUST
                         )
 
-            if message == "Rescue":
-                if self._human_name in trustBeliefs["rescue"]:
-                    trustBeliefs["rescue"][self._human_name]["willingness"] += POSITIVE_UPDATE
-                    trustBeliefs["rescue"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue"][self._human_name]["willingness"], -1, 1)
+            if message == "Rescue" and "critical" in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_critical"] and 'critical' in self._goal_vic:
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
 
-            if message == "Rescue together":
-                if self._human_name in trustBeliefs["rescue"]:
-                    trustBeliefs["rescue"][self._human_name]["willingness"] += POSITIVE_UPDATE
-                    trustBeliefs["rescue"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue"][self._human_name]["willingness"], -1, 1)
 
-            if message == "Rescue alone":
-                if self._human_name in trustBeliefs["rescue"] and trustBeliefs["rescue"][self._human_name]["competence"] < 0.5:
-                    trustBeliefs["rescue"][self._human_name]["willingness"] -= POSITIVE_UPDATE
-                    trustBeliefs["rescue"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue"][self._human_name]["willingness"], -1, 1)
+            if message == "Rescue" and "mild" in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_mild"] and 'mild' in self._goal_vic:
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
+
+
+            if message == "Rescue together" and 'critical' in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue"]:
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
+
+            if message == "Rescue together" and 'mild' in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_mild"]:
+                    #willingness is increase because of proactivity but competence is decreased because the human didn't rescue mild alone (so weak or lazy)
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] += POSITIVE_UPDATE
+                    trustBeliefs["rescue_mild"][self._human_name]["competence"] += NEGATIVE_UPDATE
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
+                    trustBeliefs["rescue_mild"][self._human_name]["competence"] = np.clip(trustBeliefs["resrescue_mildcue"][self._human_name]["willingness"], -1, 1)
+
+            if message == "Rescue alone" and 'mild' in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_mild"] and trustBeliefs["rescue_mild"][self._human_name]["competence"] < 0.5:
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] -= POSITIVE_UPDATE
+                    trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
+
+            if message == "Rescue alone" and 'critical' in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_mild"] and trustBeliefs["rescue_critical"][self._human_name]["competence"] < 0.5:
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] -= POSITIVE_UPDATE
+                    trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
 
         # Update trust values based on human actions
         for update in self._trust_updates:
@@ -1228,7 +1261,7 @@ class BaselineAgent(ArtificialBrain):
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
-            for task in ["search", "rescue"]:
+            for task in ["rescue_mild","rescue_critical","search", "remove"]:
                 if self._human_name in trustBeliefs[task]:
                     csv_writer.writerow([
                         self._human_name, task,
