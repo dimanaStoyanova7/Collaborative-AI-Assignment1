@@ -324,8 +324,9 @@ class BaselineAgent(ArtificialBrain):
                 # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
                     # Human independently completes a task, demonstrating competence and willingness
-                    self._update_trust('rescue', 'positive', 'competence')
-                    self._update_trust('rescue', 'positive', 'willingness')
+                    # Use task rescue_mild because if a victim was rescued only by human, the victim was mild
+                    self._update_trust('rescue_mild', 'positive', 'competence')
+                    self._update_trust('rescue_mild', 'positive', 'willingness')
                     # Reset current door and switch to finding the next goal
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
@@ -414,7 +415,7 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message(
                                 'I have been waiting too long for a response regarding rock removal. Moving on.',
                                 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Continue to the next goal since this rock can only be removed together with the human
                             self._answered = True
                             self._waiting = False
@@ -466,7 +467,7 @@ class BaselineAgent(ArtificialBrain):
                         # The robot waits too long for the human to tell the robot to remove the tree so decrease willingness
                         if self._waiting and self._waiting_start is not None and (state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding tree removal. Removing tree alone.', 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Remove tree alone if human took too long to respond
                             self._answered = True
                             self._waiting = False
@@ -521,7 +522,7 @@ class BaselineAgent(ArtificialBrain):
                         if self._waiting and self._waiting_start is not None and (
                                 state['World']['nr_ticks'] - self._waiting_start) > self._max_wait_time:
                             self._send_message('I have been waiting too long for a response regarding stones removal. Removing stone alone.', 'RescueBot')
-                            self._update_trust('search', 'negative', 'willingness')
+                            self._update_trust('remove', 'negative', 'willingness')
                             # Remove stone alone if human took too long to respond
                             self._answered = True
                             self._waiting = False
@@ -595,8 +596,9 @@ class BaselineAgent(ArtificialBrain):
                 if self._goal_vic in self._collected_victims:
                     self._current_door = None
                     # Human is performing well so increase competence and willingness
-                    self._update_trust('rescue', 'positive', 'willingness')
-                    self._update_trust('rescue', 'positive', 'competence')
+                    # Use task rescue_mild because if a victim was rescued only by human, the victim was mild
+                    self._update_trust('rescue_mild', 'positive', 'willingness')
+                    self._update_trust('rescue_mild', 'positive', 'competence')
                     self._phase = Phase.FIND_NEXT_GOAL
 
                 # Check if the target victim is found in a different area, and start moving there
@@ -740,8 +742,8 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message(
                             'I have been waiting too long for a response regarding the rescue of ' + self._recent_vic + '. Moving on.',
                             'RescueBot')
-                        self._update_trust('rescue', 'negative', 'willingness')
-                        self._update_trust('rescue', 'negative', 'competence')
+                        self._update_trust('rescue_critical', 'negative', 'willingness')
+                        self._update_trust('rescue_critical', 'negative', 'competence')
                         # Move on if human took too long to respond and victim is critical since agent cannot rescue alone
                         self._answered = True
                         self._waiting = False
@@ -753,8 +755,8 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message(
                             'I have been waiting too long for a response regarding the rescue of ' + self._recent_vic + '. Rescuing victim alone.',
                             'RescueBot')
-                        self._update_trust('rescue', 'negative', 'willingness')
-                        self._update_trust('rescue', 'negative', 'competence')
+                        self._update_trust('rescue_mild', 'negative', 'willingness')
+                        self._update_trust('rescue_mild', 'negative', 'competence')
                         # Rescue victim alone if human took too long to respond
                         self._rescue = 'alone'
                         self._answered = True
