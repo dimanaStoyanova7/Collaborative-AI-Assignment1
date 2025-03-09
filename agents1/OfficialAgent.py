@@ -1155,17 +1155,28 @@ class BaselineAgent(ArtificialBrain):
                 else:
                     victim = ' '.join(message.split()[1:5])
 
-                # If the rescue was valid (victim is in collected victims list) #TODO make different updates depending on whether victim is mild/severe
+                # If the rescue was valid (victim is in collected victims list)
                 if victim in self._collected_victims and victim :
                     if self._human_name in trustBeliefs['rescue']:
-                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
-                            trustBeliefs['rescue'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST, MAX_TRUST
-                        )
+                        if 'mild' in self._goal_vic:
+                            trustBeliefs['rescue_mild'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_mild'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
+                        if 'critical' in self._goal_vic:
+                            trustBeliefs['rescue_critical'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_critical'][self._human_name]['competence'] + POSITIVE_UPDATE, MIN_TRUST,
+                                MAX_TRUST
+                            )
                 else:  # If the human claimed to rescue but did not
                     if self._human_name in trustBeliefs['rescue']:
-                        trustBeliefs['rescue'][self._human_name]['competence'] = np.clip(
-                            trustBeliefs['rescue'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
-                        )
+                        if 'mild' in self._goal_vic:
+                            trustBeliefs['rescue_mild'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_mild'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
+                        if 'critical' in self._goal_vic:
+                            trustBeliefs['rescue_critical'][self._human_name]['competence'] = np.clip(
+                                trustBeliefs['rescue_critical'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST, MAX_TRUST
+                            )
                         
             if 'Search' in message:
                 area = 'area ' + message.split()[-1]
@@ -1181,26 +1192,25 @@ class BaselineAgent(ArtificialBrain):
                             trustBeliefs['search'][self._human_name]['competence'] + NEGATIVE_UPDATE, MIN_TRUST,
                             MAX_TRUST
                         )
-            #TODO: properly check if victim is critical
-            if message == "Rescue" and 'critical':
-                if self._human_name in trustBeliefs["rescue_critical"] and 'critical':
+
+            if message == "Rescue" and "critical" in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_critical"] and 'critical' in self._goal_vic:
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] += POSITIVE_UPDATE
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
 
-            #TODO: properly check if victim is mild
-            if message == "Rescue" and 'mild':
-                if self._human_name in trustBeliefs["rescue_critical"] and 'critical':
+
+            if message == "Rescue" and "mild" in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_critical"] and 'critical' in self._goal_vic:
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] += POSITIVE_UPDATE
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
 
-            # TODO: properly check if victim is critical
-            if message == "Rescue together" and 'critical':
+
+            if message == "Rescue together" and 'critical' in self._goal_vic:
                 if self._human_name in trustBeliefs["rescue"]:
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] += POSITIVE_UPDATE
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
 
-            #TODO: properly check if victim is mild
-            if message == "Rescue together" and 'mild':
+            if message == "Rescue together" and 'mild' in self._goal_vic:
                 if self._human_name in trustBeliefs["rescue_mild"]:
                     #willingness is increase because of proactivity but competence is decreased because the human didn't rescue mild alone (so weak or lazy)
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] += POSITIVE_UPDATE
@@ -1208,14 +1218,12 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
                     trustBeliefs["rescue_mild"][self._human_name]["competence"] = np.clip(trustBeliefs["resrescue_mildcue"][self._human_name]["willingness"], -1, 1)
 
-            # TODO: properly check if victim is mild
-            if message == "Rescue alone" and 'mild':
+            if message == "Rescue alone" and 'mild' in self._goal_vic:
                 if self._human_name in trustBeliefs["rescue_mild"] and trustBeliefs["rescue_mild"][self._human_name]["competence"] < 0.5:
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] -= POSITIVE_UPDATE
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
 
-            # TODO: properly check if victim is critical
-            if message == "Rescue alone" and 'critical':
+            if message == "Rescue alone" and 'critical' in self._goal_vic:
                 if self._human_name in trustBeliefs["rescue_mild"] and trustBeliefs["rescue_critical"][self._human_name]["competence"] < 0.5:
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] -= POSITIVE_UPDATE
                     trustBeliefs["rescue_critical"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_critical"][self._human_name]["willingness"], -1, 1)
