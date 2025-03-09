@@ -556,9 +556,9 @@ class BaselineAgent(ArtificialBrain):
                                     self._arrive_waiting = False
                                     self._arrive_waiting_start = None
 
-                        if self._human_name in trustBeliefs['rescue']:
-                            current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
-                            current_competence = trustBeliefs['rescue'][self._human_name]['competence']
+                        if self._human_name in trustBeliefs['search']:
+                            current_willingness = trustBeliefs['search'][self._human_name]['willingness']
+                            current_competence = trustBeliefs['search'][self._human_name]['competence']
                         else:
                             current_willingness = 0.0
                             current_competence = 0.0
