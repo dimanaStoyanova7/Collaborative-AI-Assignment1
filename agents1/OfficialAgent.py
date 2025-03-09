@@ -1200,7 +1200,7 @@ class BaselineAgent(ArtificialBrain):
 
 
             if message == "Rescue" and "mild" in self._goal_vic:
-                if self._human_name in trustBeliefs["rescue_critical"] and 'critical' in self._goal_vic:
+                if self._human_name in trustBeliefs["rescue_mild"] and 'mild' in self._goal_vic:
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] += POSITIVE_UPDATE
                     trustBeliefs["rescue_mild"][self._human_name]["willingness"] = np.clip(trustBeliefs["rescue_mild"][self._human_name]["willingness"], -1, 1)
 
