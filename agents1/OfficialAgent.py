@@ -189,7 +189,14 @@ class BaselineAgent(ArtificialBrain):
 
                 # Check which victims can be rescued next because human or agent already found them
                 for vic in remaining_vics:
-                    human_trust = 0.5 * (trustBeliefs['rescue'][self._human_name]['willingness'] + trustBeliefs['rescue'][self._human_name]['competence'])
+                    if self._human_name in trustBeliefs['rescue']:
+                        current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
+                        current_competence = trustBeliefs['rescue'][self._human_name]['competence']
+                    else:
+                        current_willingness = 0.0
+                        current_competence = 0.0
+
+                    human_trust = 0.5 * (current_competence + current_willingness)
                     # Define a previously found victim as target victim because all areas have been searched
                     if vic in self._found_victims and vic in self._todo and len(self._searched_rooms) == 0:
                         self._goal_vic = vic
@@ -515,7 +522,14 @@ class BaselineAgent(ArtificialBrain):
                             self._waiting = True
                             self._waiting_start = state['World']['nr_ticks'] # Record start time when waiting for human response to remove the stone
 
-                        current_trust = 0.5 * (trustBeliefs['search'][self._human_name]['willingness'] + trustBeliefs['search'][self._human_name]['competence'])
+                        if self._human_name in trustBeliefs['rescue']:
+                            current_willingness = trustBeliefs['rescue'][self._human_name]['willingness']
+                            current_competence = trustBeliefs['rescue'][self._human_name]['competence']
+                        else:
+                            current_willingness = 0.0
+                            current_competence = 0.0
+
+                        current_trust = 0.5 * (current_competence + current_willingness)
 
                         # The robot waits too long for the human to remove the stone together so decrease willingness
                         if self._waiting and self._waiting_start is not None and (
